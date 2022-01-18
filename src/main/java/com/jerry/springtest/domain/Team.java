@@ -1,9 +1,8 @@
-package com.jerry.springtest.entity;
+package com.jerry.springtest.domain;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.persistence.CascadeType;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -30,7 +29,6 @@ public class Team {
 
 	public void addMember(Member member){
 		members.add(member);
-		member.assignTeam(this);
 	}
 
 	public List<Member> getMembers() {

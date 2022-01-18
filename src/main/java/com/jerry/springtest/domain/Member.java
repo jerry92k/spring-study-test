@@ -1,4 +1,4 @@
-package com.jerry.springtest.entity;
+package com.jerry.springtest.domain;
 
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
@@ -15,7 +15,7 @@ public class Member {
 
 	private String name;
 
-	// @JoinColumn(name = "member")
+	@JoinColumn(name = "team_id")
 	@ManyToOne
 	private Team team;
 
@@ -28,5 +28,6 @@ public class Member {
 
 	public void assignTeam(Team team){
 		this.team=team;
+		team.addMember(this);
 	}
 }

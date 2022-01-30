@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -17,7 +18,7 @@ public class Team {
 
 	private String name;
 
-	@OneToMany(mappedBy = "team")
+	@OneToMany(mappedBy = "team", fetch = FetchType.LAZY)
 	private List<Member> members = new ArrayList<>();
 
 	protected Team() {

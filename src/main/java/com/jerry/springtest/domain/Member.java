@@ -15,6 +15,8 @@ public class Member {
 
 	private String name;
 
+	private int age;
+
 	@JoinColumn(name = "team_id")
 	@ManyToOne
 	private Team team;
@@ -29,5 +31,17 @@ public class Member {
 	public void assignTeam(Team team){
 		this.team=team;
 		team.addMember(this);
+	}
+
+	public void changeAge(int age){
+		this.age = age;
+	}
+
+	public int getAge() {
+		return age;
+	}
+
+	public Long getId() {
+		return id;
 	}
 }

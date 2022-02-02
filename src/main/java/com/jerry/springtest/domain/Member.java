@@ -10,7 +10,8 @@ import javax.persistence.ManyToOne;
 @Entity
 public class Member {
 
-	@Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
 	private String name;
@@ -28,13 +29,22 @@ public class Member {
 		this.name = name;
 	}
 
-	public void assignTeam(Team team){
-		this.team=team;
+	public Member(String name, int age) {
+		this.name = name;
+		this.age = age;
+	}
+
+	public void assignTeam(Team team) {
+		this.team = team;
 		team.addMember(this);
 	}
 
-	public void changeAge(int age){
+	public void changeAge(int age) {
 		this.age = age;
+	}
+
+	public void changeName(String name) {
+		this.name = name;
 	}
 
 	public int getAge() {

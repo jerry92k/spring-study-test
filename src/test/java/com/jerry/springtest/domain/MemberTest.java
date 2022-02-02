@@ -2,6 +2,9 @@ package com.jerry.springtest.domain;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.util.Optional;
+
+import javax.persistence.EntityManager;
 import javax.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +15,9 @@ class MemberTest {
 
 	@Autowired
 	private MemberRepository memberRepository;
+
+	@Autowired
+	private EntityManager em;
 
 	@Test
 	void spring_data_jpa_query_annotation_select전에_flush(){
@@ -44,5 +50,31 @@ class MemberTest {
 		member.changeAge(20);
 		Member findMemberById = memberRepository.findById(member.getId()).orElseThrow(EntityNotFoundException::new);
 		assertThat(findMemberById.getAge()).isEqualTo(20);
+	}
+
+	@Test
+	void primitive타입_같은값으로_수정하면_dirty_bit_체크가_안되서_update_쿼리_안나간다(){
+		Member member = new Member("jerry",10);
+		Member persistMember = memberRepository.save(member);
+		// memberRepository.flush();
+
+		System.out.println("here");
+		persistMember.changeAge(10);
+		em.flush();
+		em.clear();
+		Member findMember = memberRepository.findById(persistMember.getId()).orElseThrow(EntityNotFoundException::new);
+	}
+
+	@Test
+	void 객체타입도_같은값으로_수정하면_dirty_bit_체크가_안되서_update_쿼리_안나간다(){
+		Member member = new Member("jerry",10);
+		Member persistMember = memberRepository.save(member);
+		// memberRepository.flush();
+
+		System.out.println("here");
+		persistMember.changeName(new String("jerry"));
+		em.flush();
+		em.clear();
+		Member findMember = memberRepository.findById(persistMember.getId()).orElseThrow(EntityNotFoundException::new);
 	}
 }

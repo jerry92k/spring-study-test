@@ -6,6 +6,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.jerry.springtest.interceptor.AInterceptor;
 import com.jerry.springtest.interceptor.BInterceptor;
+import com.jerry.springtest.interceptor.LoggingInterceptor;
 
 @Configuration
 public class InterceptorConfig implements WebMvcConfigurer {
@@ -20,5 +21,8 @@ public class InterceptorConfig implements WebMvcConfigurer {
 		registry.addInterceptor(new BInterceptor())
 			.order(1)
 			.addPathPatterns("/interceptor/test");
+
+		registry.addInterceptor(new LoggingInterceptor())
+			.addPathPatterns("/markets");
 	}
 }

@@ -23,6 +23,6 @@ public class InterceptorConfig implements WebMvcConfigurer {
 			.addPathPatterns("/interceptor/test");
 
 		registry.addInterceptor(new LoggingInterceptor())
-			.addPathPatterns("/markets");
+			.addPathPatterns("/markets/**");
 	}
 }

@@ -11,7 +11,7 @@ import com.jerry.springtest.dto.MarketDto;
 @RequestMapping("/markets")
 public class MarketController {
 
-	@GetMapping
+	@GetMapping("/v1")
 	public ResponseEntity<MarketDto> findMarkets(){
 		MarketDto marketDto = new MarketDto("수지 롯데몰");
 		return ResponseEntity.ok(marketDto);

@@ -23,10 +23,7 @@ public class LogFilter implements Filter {
 	public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws
 		IOException,
 		ServletException {
-		System.out.println("here inside?");
-		/* filter에서 reponse를 ContentCachingResponseWrapper 객체로 래핑
-		   ContentCachingResponseWrapper는 한번만 출력가능한 response의 outputStream을 직접 사용하지 않고 ContentCachingResponseWrapper에 캐싱해둔 데이터 사용
-		 */
+		// reponse를 ContentCachingResponseWrapper 객체로 래핑
 		ContentCachingResponseWrapper httpServletResponse = new ContentCachingResponseWrapper(
 			(HttpServletResponse)response);
 

@@ -14,8 +14,11 @@ public class LoggingInterceptor implements HandlerInterceptor {
 	@Override
 	public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler,
 		ModelAndView modelAndView) throws Exception {
-		// log.info("response is committed {} ", response.isCommitted());
-		response.getWriter();
-		response.getOutputStream();
+
+		try {
+			response.getWriter();
+		} catch (IllegalStateException ex) {
+			log.error("OutputStream 사용 못하게 제한됨. \n Error message {}", ex.getMessage());
+		}
 	}
 }

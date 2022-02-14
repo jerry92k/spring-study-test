@@ -2,14 +2,11 @@ package com.jerry.springtest.acceptacne;
 
 import static org.assertj.core.api.Assertions.*;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import com.jerry.springtest.dto.MarketDto;
 
 import io.restassured.RestAssured;
-import io.restassured.response.ExtractableResponse;
-import io.restassured.response.Response;
 
 public class MarketAcceptacneTest extends AcceptanceTest {
 
@@ -32,5 +29,17 @@ public class MarketAcceptacneTest extends AcceptanceTest {
 			.extract().as(MarketDto.class);
 
 		assertThat(result.getName()).isEqualTo("수지 롯데몰 filter");
+	}
+
+	@Test
+	void argumentResolve_커스터마이징() {
+		MarketDto result = RestAssured
+			.given().log().all()
+			.when().get(MARKET_PATH + "/resolve?station=pangyo")
+			.then().log().all()
+			.extract().as(MarketDto.class);
+
+		// 적용되는 ArgumentResolver가 여러개인 경우, 먼저 등록된 게 적용됨
+		assertThat(result.getName()).isEqualTo("pangyo+ resolved V2");
 	}
 }

@@ -1,6 +1,7 @@
 package com.jerry.springtest.utils.customhtmlunit;
 
 import static com.gargoylesoftware.htmlunit.BrowserVersionFeatures.*;
+import static com.gargoylesoftware.htmlunit.DefaultPageCreator.*;
 import static java.nio.charset.StandardCharsets.*;
 
 import java.io.IOException;
@@ -13,10 +14,13 @@ import java.util.Map;
 
 import org.apache.http.HttpStatus;
 
+import net.sourceforge.htmlunit.corejs.javascript.Scriptable;
+import net.sourceforge.htmlunit.corejs.javascript.ScriptableObject;
+
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.CustomProxyConfig;
+import com.gargoylesoftware.htmlunit.DefaultPageCreator;
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
-import com.gargoylesoftware.htmlunit.HttpHeader;
 import com.gargoylesoftware.htmlunit.HttpMethod;
 import com.gargoylesoftware.htmlunit.Page;
 import com.gargoylesoftware.htmlunit.ProxyAutoConfig;
@@ -27,6 +31,7 @@ import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.WebResponse;
 import com.gargoylesoftware.htmlunit.WebResponseFromCacheFactory;
 import com.gargoylesoftware.htmlunit.WebWindow;
+import com.gargoylesoftware.htmlunit.javascript.host.Window;
 import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import com.gargoylesoftware.htmlunit.util.UrlUtils;
 
@@ -34,7 +39,7 @@ public class CustomWebClient extends WebClient {
 
 	private ThreadLocal<HtmlUnitRedirection> redirectStore = new ThreadLocal<>();
 
-	public static final int maxRedirect = 1;
+	public static final int maxRedirect = 5;
 	private static final int ALLOWED_REDIRECTIONS_SAME_URL = 3;
 	// private int countRedirect=0;
 
@@ -110,8 +115,8 @@ public class CustomWebClient extends WebClient {
 
 	private WebResponse customLoadWebResponseFromWebConnection(final WebRequest webRequest,
 		final int allowedRedirects) throws IOException {
-
 		URL url = webRequest.getUrl();
+
 		final HttpMethod method = webRequest.getHttpMethod();
 		final List<NameValuePair> parameters = webRequest.getRequestParameters();
 
@@ -166,28 +171,8 @@ public class CustomWebClient extends WebClient {
 
 		// Add the headers that are sent with every request.
 
-		// reflection
-		/**
-		 *
-		 */
-		Class webClientClass = WebClient.class;
-
-		// Class partypes[] = new Class[2];
-		// partypes[0] = com.gargoylesoftware.htmlunit.WebRequest.class;
-		// partypes[1] = Integer.TYPE;/**/
-		try {
-			Method meth = webClientClass.getDeclaredMethod("addDefaultHeaders", WebRequest.class);
-			meth.setAccessible(true);
-			meth.invoke(this, webRequest);
-		} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-			e.printStackTrace();
-			throw new RuntimeException();
-		}
-		// addDefaultHeaders(webRequest);
-
-		/**
-		 *
-		 */
+		// reflection으로 WebClient의 private method "addDefaultHeaders" 호출
+		callAddDefaultHeaders(webRequest);
 
 		// Retrieve the response, either from the cache or from the server.
 		final WebResponse fromCache = getCache().getCachedResponse(webRequest);
@@ -250,14 +235,20 @@ public class CustomWebClient extends WebClient {
 				for (final Map.Entry<String, String> entry : webRequest.getAdditionalHeaders().entrySet()) {
 					wrs.setAdditionalHeader(entry.getKey(), entry.getValue());
 				}
-				// TODO : 스레드 로컬에 redirect 횟수 추가
+
+				if(!isTopLevelHtml(webResponse)){
+					return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
+				}
+
+				if(isReachMaxRedirect()){
+					return webResponse;
+				}
+				increaseRedirection();
 				return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
 			}
 			else if (status == HttpStatus.SC_TEMPORARY_REDIRECT
 				|| status == 308) {
-				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/307
-				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/308
-				// reuse method and body
+
 				final WebRequest wrs = new WebRequest(newUrl, webRequest.getHttpMethod());
 				wrs.setCharset(webRequest.getCharset());
 				if (webRequest.getRequestBody() != null) {
@@ -275,7 +266,15 @@ public class CustomWebClient extends WebClient {
 				for (final Map.Entry<String, String> entry : webRequest.getAdditionalHeaders().entrySet()) {
 					wrs.setAdditionalHeader(entry.getKey(), entry.getValue());
 				}
-				// TODO : 스레드 로컬에 redirect 횟수 추가
+
+				if(!isTopLevelHtml(webResponse)){
+					return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
+				}
+
+				if(isReachMaxRedirect()){
+					return webResponse;
+				}
+				increaseRedirection();
 				return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
 			}
 		}
@@ -284,5 +283,31 @@ public class CustomWebClient extends WebClient {
 			getCache().cacheIfPossible(webRequest, webResponse, null);
 		}
 		return webResponse;
+	}
+
+	private boolean isTopLevelHtml(final WebResponse webResponse) throws IOException {
+		if(getCurrentWindow().getClass() != TopLevelWindow.class){
+			return false;
+		}
+
+		final DefaultPageCreator.PageType pageType = determinePageType(webResponse);
+		if(!pageType.equals("HTML")){
+			return false;
+		}
+
+		return true;
+	}
+
+	private void callAddDefaultHeaders(final WebRequest webRequest) {
+		Class webClientClass = WebClient.class;
+
+		try {
+			Method meth = webClientClass.getDeclaredMethod("addDefaultHeaders", WebRequest.class);
+			meth.setAccessible(true);
+			meth.invoke(this, webRequest);
+		} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+			e.printStackTrace();
+			throw new RuntimeException();
+		}
 	}
 }

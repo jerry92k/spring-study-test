@@ -29,8 +29,8 @@ public class HtmlUnitTest {
 
 	@Test
 	void test() throws IOException {
-		String testUrl = "https://jerry92k.tistory.com/85";
-		// String testUrl = "https://bit.ly/3yYslyO";
+		// String testUrl = "https://jerry92k.tistory.com/85";
+		String testUrl = "https://bit.ly/3yYslyO";
 		URL url = htmlUnitService.findUrl(testUrl);
 		System.out.println("URL : "+url);
 	}

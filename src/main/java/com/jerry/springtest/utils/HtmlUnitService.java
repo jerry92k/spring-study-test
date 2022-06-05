@@ -6,7 +6,6 @@ import java.net.URL;
 
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.NicelyResynchronizingAjaxController;
-import com.gargoylesoftware.htmlunit.Page;
 import com.gargoylesoftware.htmlunit.ScriptException;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
@@ -29,16 +28,13 @@ public class HtmlUnitService {
 
 	void initWebClient(WebClient webClientImp) {
 		webClient = webClientImp;
-		// webClient.setAjaxController(new );
-		// webClient.setAjaxController(new AsyncControll());
+		webClient.setAjaxController(new NicelyResynchronizingAjaxController());
 		webClient.getOptions().setThrowExceptionOnScriptError(false);
 		webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
 		webClient.getOptions().setJavaScriptEnabled(true);
 		webClient.getOptions().setRedirectEnabled(true);
 		webClient.getOptions().setCssEnabled(false);
 		webClient.getOptions().setDownloadImages(false);
-		// webClient.getOptions().setHistoryPageCacheLimit(1);
-		// webClient.getOptions().setHistorySizeLimit(1);
 
 		webClient.getCookieManager().setCookiesEnabled(true);
 		webClient.getCache().setMaxSize(10);

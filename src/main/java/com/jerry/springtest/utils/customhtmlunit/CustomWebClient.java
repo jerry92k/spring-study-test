@@ -13,13 +13,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.http.HttpStatus;
-
-import net.sourceforge.htmlunit.corejs.javascript.Scriptable;
-import net.sourceforge.htmlunit.corejs.javascript.ScriptableObject;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.stereotype.Service;
 
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.CustomProxyConfig;
-import com.gargoylesoftware.htmlunit.DefaultPageCreator;
+
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.HttpMethod;
 import com.gargoylesoftware.htmlunit.Page;
@@ -31,17 +30,17 @@ import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.WebResponse;
 import com.gargoylesoftware.htmlunit.WebResponseFromCacheFactory;
 import com.gargoylesoftware.htmlunit.WebWindow;
-import com.gargoylesoftware.htmlunit.javascript.host.Window;
+
 import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import com.gargoylesoftware.htmlunit.util.UrlUtils;
 
-public class CustomWebClient extends WebClient {
+@Service
+public class CustomWebClient extends WebClient implements DisposableBean {
 
-	private ThreadLocal<HtmlUnitRedirection> redirectStore = new ThreadLocal<>();
+	private ThreadLocal<HtmlUnitRedirection> redirectStore = new InheritableThreadLocal<>();
 
-	public static final int maxRedirect = 5;
+	public static final int maxRedirect = 1;
 	private static final int ALLOWED_REDIRECTIONS_SAME_URL = 3;
-	// private int countRedirect=0;
 
 	public CustomWebClient() {
 		super();
@@ -100,7 +99,12 @@ public class CustomWebClient extends WebClient {
 
 	private boolean isReachMaxRedirect() {
 		HtmlUnitRedirection htmlUnitRedirection = redirectStore.get();
-		return htmlUnitRedirection.isReachMaxRedirect();
+		try {
+			return htmlUnitRedirection.isReachMaxRedirect();
+		}catch (NullPointerException ex){
+			return false;
+		}
+
 	}
 
 	@Override
@@ -184,6 +188,10 @@ public class CustomWebClient extends WebClient {
 			webResponse = WebResponseFromCacheFactory.makeWebResponseFromCache(fromCache, webRequest);
 		}
 
+		if(isReachMaxRedirect()){
+			return webResponse;
+		}
+
 		// Continue according to the HTTP status code.
 		final int status = webResponse.getStatusCode();
 		if (status == HttpStatus.SC_USE_PROXY) {
@@ -236,14 +244,10 @@ public class CustomWebClient extends WebClient {
 					wrs.setAdditionalHeader(entry.getKey(), entry.getValue());
 				}
 
-				if(!isTopLevelHtml(webResponse)){
-					return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
+				if(isTopLevelHtml(webResponse)){
+					increaseRedirection();
 				}
 
-				if(isReachMaxRedirect()){
-					return webResponse;
-				}
-				increaseRedirection();
 				return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
 			}
 			else if (status == HttpStatus.SC_TEMPORARY_REDIRECT
@@ -267,14 +271,10 @@ public class CustomWebClient extends WebClient {
 					wrs.setAdditionalHeader(entry.getKey(), entry.getValue());
 				}
 
-				if(!isTopLevelHtml(webResponse)){
-					return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
+				if(isTopLevelHtml(webResponse)){
+					increaseRedirection();
 				}
 
-				if(isReachMaxRedirect()){
-					return webResponse;
-				}
-				increaseRedirection();
 				return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
 			}
 		}
@@ -290,8 +290,7 @@ public class CustomWebClient extends WebClient {
 			return false;
 		}
 
-		final DefaultPageCreator.PageType pageType = determinePageType(webResponse);
-		if(!pageType.equals("HTML")){
+		if(!determinePageType(webResponse).equals("HTML")){
 			return false;
 		}
 
@@ -309,5 +308,10 @@ public class CustomWebClient extends WebClient {
 			e.printStackTrace();
 			throw new RuntimeException();
 		}
+	}
+
+	@Override
+	public void destroy() throws Exception {
+		close();
 	}
 }

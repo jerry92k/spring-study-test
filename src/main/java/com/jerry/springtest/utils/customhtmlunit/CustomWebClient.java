@@ -34,12 +34,15 @@ import com.gargoylesoftware.htmlunit.WebWindow;
 import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import com.gargoylesoftware.htmlunit.util.UrlUtils;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class CustomWebClient extends WebClient implements DisposableBean {
 
 	private ThreadLocal<HtmlUnitRedirection> redirectStore = new InheritableThreadLocal<>();
 
-	public static final int maxRedirect = 1;
+	public static final int maxRedirect = 3;
 	private static final int ALLOWED_REDIRECTIONS_SAME_URL = 3;
 
 	public CustomWebClient() {
@@ -51,47 +54,57 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 
 	}
 
-	@Override
-	public <P extends Page> P getPage(final String url) throws IOException, FailingHttpStatusCodeException,
-		MalformedURLException {
-		redirectStore.set(new HtmlUnitRedirection());
-		P resultPage = super.getPage(url);
-		redirectStore.remove();
-		return resultPage;
+	public URL findOriginUrl(URL url) {
+		URL foundUrl;
+		redirectStore.set(new HtmlUnitRedirection(url));
+		try {
+			Page page = getPage(url);
+			foundUrl = page.getUrl();
+		} catch (Exception e) {
+			e.printStackTrace();
+			URL lastestURL = redirectStore.get().getCurrentUrl();
+			log.error("exception occured : {} \n lastUrl is : {}", e.getMessage(), lastestURL);
+			// exception을 던지지 않고 마지막 호출한 url을 리턴함
+			foundUrl = lastestURL;
+		} finally {
+			redirectStore.remove();
+		}
+		return foundUrl;
 	}
 
 	@Override
 	public void download(final WebWindow requestingWindow, final String target,
 		final WebRequest request, final boolean checkHash, final boolean forceLoad,
 		final boolean forceAttachment, final String description) {
-		if(checkRedirectPossible(requestingWindow, target, description)){
-			return ;
+		if (checkRedirectPossible(requestingWindow, target, description)) {
+			return;
 		}
 
-		super.download(requestingWindow,target,request,checkHash,forceLoad,forceAttachment,description);
-
-		increaseRedirection();
+		doRedirection(request.getUrl());
+		super.download(requestingWindow, target, request, checkHash, forceLoad, forceAttachment, description);
 	}
 
-	private void increaseRedirection() {
+	private void doRedirection(URL url) {
 		HtmlUnitRedirection htmlUnitRedirection = redirectStore.get();
-		htmlUnitRedirection.increaseRedirectCount();
+		htmlUnitRedirection.doRedirection(url);
 	}
 
 	/*
 	 htmlunit 라이브러리 버전이 바뀌어 아래 조건이 달라지면 함께 수정해주어야 한다.
 	 com.gargoylesoftware.htmlunit.WebClient.resolveWindow(...)
 	 */
-	private boolean checkRedirectPossible(final WebWindow requestingWindow, final String name, final String description) {
-		if(name != null && !name.isEmpty() && !TARGET_SELF.equals(name)){
+	private boolean checkRedirectPossible(final WebWindow requestingWindow, final String name,
+		final String description) {
+		if (name != null && !name.isEmpty() && !TARGET_SELF.equals(name)) {
 			return false;
 		}
 
-		if(requestingWindow.getClass() != TopLevelWindow.class){
+		// TopLevelWindow에서 호출하는 js가 아니면 redirection에 영향을 주지 않으니 더이상 download 하지 않는다.
+		if (requestingWindow.getClass() != TopLevelWindow.class) {
 			return false;
 		}
 
-		if(!description.equals("JS set location")){
+		if (!description.equals("JS set location")) {
 			return false;
 		}
 		return isReachMaxRedirect();
@@ -101,7 +114,7 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 		HtmlUnitRedirection htmlUnitRedirection = redirectStore.get();
 		try {
 			return htmlUnitRedirection.isReachMaxRedirect();
-		}catch (NullPointerException ex){
+		} catch (NullPointerException ex) {
 			return false;
 		}
 
@@ -110,7 +123,7 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 	@Override
 	public WebResponse loadWebResponse(final WebRequest webRequest) throws IOException {
 		String requestProtocol = webRequest.getUrl().getProtocol();
-		if(List.of(UrlUtils.ABOUT,"file","data").contains(requestProtocol)){
+		if (List.of(UrlUtils.ABOUT, "file", "data").contains(requestProtocol)) {
 			return super.loadWebResponse(webRequest);
 		}
 
@@ -131,7 +144,6 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 		url = UrlUtils.encodeUrl(url, getBrowserVersion().hasFeature(URL_MINIMAL_QUERY_ENCODING),
 			webRequest.getCharset());
 		webRequest.setUrl(url);
-
 
 		// If the request settings don't specify a custom proxy, use the default client proxy...
 		if (webRequest.getProxyHost() == null) {
@@ -154,8 +166,7 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 						webRequest.setSocksProxy(false);
 						webRequest.setProxyHost(value.substring(0, colonIndex));
 						webRequest.setProxyPort(Integer.parseInt(value.substring(colonIndex + 1)));
-					}
-					else if (value.startsWith("SOCKS")) {
+					} else if (value.startsWith("SOCKS")) {
 						value = value.substring(6);
 						final int colonIndex = value.indexOf(':');
 						webRequest.setSocksProxy(true);
@@ -183,12 +194,11 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 		final WebResponse webResponse;
 		if (fromCache == null) {
 			webResponse = getWebConnection().getResponse(webRequest);
-		}
-		else {
+		} else {
 			webResponse = WebResponseFromCacheFactory.makeWebResponseFromCache(fromCache, webRequest);
 		}
 
-		if(isReachMaxRedirect()){
+		if (isReachMaxRedirect()) {
 			return webResponse;
 		}
 
@@ -196,8 +206,7 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 		final int status = webResponse.getStatusCode();
 		if (status == HttpStatus.SC_USE_PROXY) {
 			getIncorrectnessListener().notify("Ignoring HTTP status code [305] 'Use Proxy'", this);
-		}
-		else if (status >= HttpStatus.SC_MOVED_PERMANENTLY
+		} else if (status >= HttpStatus.SC_MOVED_PERMANENTLY
 			&& status <= 308
 			&& status != HttpStatus.SC_NOT_MODIFIED
 			&& getOptions().isRedirectEnabled()) {
@@ -217,8 +226,7 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 				if (getBrowserVersion().hasFeature(HTTP_REDIRECT_WITHOUT_HASH)) {
 					newUrl = UrlUtils.getUrlWithNewRef(newUrl, null);
 				}
-			}
-			catch (final MalformedURLException e) {
+			} catch (final MalformedURLException e) {
 				getIncorrectnessListener().notify("Got a redirect status code [" + status + " "
 					+ webResponse.getStatusMessage()
 					+ "] but the location is not a valid URL [" + locationString
@@ -244,13 +252,12 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 					wrs.setAdditionalHeader(entry.getKey(), entry.getValue());
 				}
 
-				if(isTopLevelHtml(webResponse)){
-					increaseRedirection();
+				if (!isDifferentURL(url, newUrl) && isTopLevelHtml(webResponse)) {
+					doRedirection(newUrl);
 				}
 
 				return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
-			}
-			else if (status == HttpStatus.SC_TEMPORARY_REDIRECT
+			} else if (status == HttpStatus.SC_TEMPORARY_REDIRECT
 				|| status == 308) {
 
 				final WebRequest wrs = new WebRequest(newUrl, webRequest.getHttpMethod());
@@ -262,8 +269,7 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 						wrs.setRequestBody(webRequest.getRequestBody());
 						wrs.setEncodingType(webRequest.getEncodingType());
 					}
-				}
-				else {
+				} else {
 					wrs.setRequestParameters(parameters);
 				}
 
@@ -271,8 +277,8 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 					wrs.setAdditionalHeader(entry.getKey(), entry.getValue());
 				}
 
-				if(isTopLevelHtml(webResponse)){
-					increaseRedirection();
+				if (!isDifferentURL(url, newUrl) && isTopLevelHtml(webResponse)) {
+					doRedirection(newUrl);
 				}
 
 				return customLoadWebResponseFromWebConnection(wrs, allowedRedirects - 1);
@@ -285,18 +291,30 @@ public class CustomWebClient extends WebClient implements DisposableBean {
 		return webResponse;
 	}
 
+	private Boolean isDifferentURL(URL prevUrl, URL newUrl) {
+		if (!prevUrl.getHost().equals(newUrl.getHost()))
+			return true;
+		if (!prevUrl.getPath().equals(newUrl.getPath()))
+			return true;
+		if (prevUrl.getQuery() == null)
+			return newUrl.getQuery() != null;
+
+		return newUrl.getQuery() == null || !newUrl.getQuery().equals(prevUrl.getQuery());
+	}
+
 	private boolean isTopLevelHtml(final WebResponse webResponse) throws IOException {
-		if(getCurrentWindow().getClass() != TopLevelWindow.class){
+		if (getCurrentWindow().getClass() != TopLevelWindow.class) {
 			return false;
 		}
 
-		if(!determinePageType(webResponse).equals("HTML")){
+		if (!determinePageType(webResponse).equals(PageType.HTML)) {
 			return false;
 		}
 
 		return true;
 	}
 
+	// WebClient의 private 메서드 addDefaultHeaders를 호출하기 위해 리플렉션 사용
 	private void callAddDefaultHeaders(final WebRequest webRequest) {
 		Class webClientClass = WebClient.class;
 
